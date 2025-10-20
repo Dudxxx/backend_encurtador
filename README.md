@@ -1,4 +1,3 @@
-````markdown
 # API de Encurtador de URLs
 
 ## Demo ao vivo
@@ -29,7 +28,7 @@ git clone https://github.com/Dudxxx/backend_encurtador
 npm install  or  npm i
 npm run dev
 ````
-
+```
 A API ficará disponível em [http://localhost:3000](http://localhost:3000)
 
 ### Endpoints da API
