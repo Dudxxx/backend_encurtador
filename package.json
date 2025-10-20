@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "description": "API do Encurtador de Links (Fastify + Drizzle + Supabase/Postgres)",
   "type": "module",
+  "main": "server.js",
   "scripts": {
     "dev": "nodemon --watch src src/server.js",
+    "build": "tsc",
     "start": "node src/server.js"
   },
   "dependencies": {
