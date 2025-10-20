@@ -1,16 +1,18 @@
 // src/repositories/linkRepository.js
-import { db } from "../db/index.js";
+import { db, rawClient } from "../db/index.js";
 import { links } from "../db/schema.js";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
 export const LinkRepository = {
   async create(data) {
+    // usando drizzle insert + returning
     const [row] = await db.insert(links).values(data).returning();
     return row;
   },
 
   async findAll() {
-    return await db.select().from(links).orderBy(links.created_at.desc);
+    // ordena por created_at desc usando desc()
+    return await db.select().from(links).orderBy(desc(links.created_at));
   },
 
   async findById(id) {
@@ -33,11 +35,15 @@ export const LinkRepository = {
   },
 
   async incrementClicks(id) {
-    // incrementa atomically via UPDATE ... RETURNING
-    const [row] = await db.update(links)
-      .set({ clicks: links.clicks + 1 })
-      .where(eq(links.id, id))
-      .returning();
-    return row;
+    try {
+      // usa rawClient para garantir incremento atomicamente
+      await rawClient.query("UPDATE public.links SET clicks = clicks + 1 WHERE id = $1", [id]);
+      // retorna novo registro (opcional)
+      const res = await rawClient.query("SELECT clicks FROM public.links WHERE id = $1", [id]);
+      return res.rows[0];
+    } catch (err) {
+      console.error("Erro ao incrementar clicks:", err);
+      throw err;
+    }
   }
 };
