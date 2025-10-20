@@ -1,26 +1,11 @@
 {
   "name": "backend_encurtador",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "API do Encurtador de Links (Fastify + Drizzle + Supabase/Postgres)",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon --watch src --exec node src/server.js",
+    "dev": "nodemon --watch src src/server.js",
     "start": "node src/server.js"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Dudxxx/backend_encurtador.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/Dudxxx/backend_encurtador/issues"
-  },
-  "homepage": "https://github.com/Dudxxx/backend_encurtador#readme",
-  "devDependencies": {
-    "nodemon": "^3.1.10"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
@@ -30,5 +15,9 @@
     "nanoid": "^5.1.6",
     "pg": "^8.16.3",
     "zod": "^4.1.12"
-  }
+  },
+  "devDependencies": {
+  "nodemon": "^3.1.10"
+}
+
 }
