@@ -1,4 +1,4 @@
-// src/server.js (troque a parte de cors/registro por isto)
+
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import dotenv from "dotenv";
@@ -13,24 +13,20 @@ const ORIGIN = process.env.CORS_ORIGIN || "*";
 
 const server = Fastify({ logger: true });
 
-// DEV: permitir todas origens (se você preferir usar apenas a origem, coloque ORIGIN)
 await server.register(cors, {
-  origin: true,        // permite qualquer origem — seguro só em dev
+  origin: true,        
   methods: ["GET","POST","PUT","DELETE","OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "Origin", "Accept"]
 });
 
-// Log simples de todas as requisições (útil para debug)
 server.addHook("onRequest", async (request, reply) => {
-  // imprime método, url, origin e body length (body aparece no onResponse/handler)
   server.log.info(`[REQ] ${request.method} ${request.url}  Origin=${request.headers.origin ?? "-"}`);
 });
 
-// registrar rotas API e redirect
+
 await server.register(linksRoutes, { prefix: "/api" });
 await server.register(redirectRoutes);
 
-// health
 server.get("/health", async () => {
   try {
     const res = await rawClient.query("SELECT 1 as ok");
