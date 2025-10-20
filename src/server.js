@@ -1,4 +1,3 @@
-
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import dotenv from "dotenv";
@@ -9,20 +8,20 @@ import { redirectRoutes } from "./routes/redirect.js";
 import { rawClient } from "./db/index.js";
 
 const PORT = Number(process.env.PORT || 4000);
-const ORIGIN = process.env.CORS_ORIGIN || "*";
+const ORIGIN = process.env.CORS_ORIGIN || "*"; // agora usamos a env aqui
 
 const server = Fastify({ logger: true });
 
 await server.register(cors, {
-  origin: true,        
+  origin: ORIGIN,         // <-- use a variável ORIGIN
   methods: ["GET","POST","PUT","DELETE","OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "Origin", "Accept"]
+  allowedHeaders: ["Content-Type", "Authorization", "Origin", "Accept"],
+  credentials: true
 });
 
 server.addHook("onRequest", async (request, reply) => {
   server.log.info(`[REQ] ${request.method} ${request.url}  Origin=${request.headers.origin ?? "-"}`);
 });
-
 
 await server.register(linksRoutes, { prefix: "/api" });
 await server.register(redirectRoutes);
@@ -36,6 +35,6 @@ server.get("/health", async () => {
   }
 });
 
-server.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
-  server.log.info(`Server listening on http://0.0.0.0:${PORT}`);
-});
+// usar await aqui fica coerente já que o arquivo é módulo (top-level await)
+await server.listen({ port: PORT, host: "0.0.0.0" });
+server.log.info(`Server listening on http://0.0.0.0:${PORT}`);
