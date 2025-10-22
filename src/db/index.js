@@ -1,97 +1,60 @@
-// index.js
-// Requer: "type": "module" no package.json
+// src/db/index.js
 import dotenv from "dotenv";
 dotenv.config();
 
-import dns from "dns/promises";
 import { Client } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
-  throw new Error("DATABASE_URL is required in environment variables");
+  throw new Error("DATABASE_URL is required in .env");
 }
 
-// Detecta quando for necessário usar SSL (Supabase costuma exigir)
-const useSsl =
-  (process.env.DB_SSL || "").toLowerCase() === "true" ||
-  connectionString.includes("supabase.co");
-
-async function createClientUsingIPv4() {
+function addNeonEndpointOption(connStr) {
   try {
-    const url = new URL(connectionString);
-    const host = url.hostname;
-    const port = Number(url.port || 5432);
-    const user = decodeURIComponent(url.username || "");
-    const password = decodeURIComponent(url.password || "");
-    const database = url.pathname ? url.pathname.replace(/^\//, "") : "postgres";
-
-    console.log("🔎 Resolving IPv4 for host:", host);
-
-    const lookupRes = await dns.lookup(host, { family: 4 });
-    const ipv4 = lookupRes.address;
-    console.log("✅ Resolved IPv4:", ipv4);
-
-    const clientConfig = {
-      host: ipv4,
-      port,
-      user,
-      password,
-      database
-    };
-
-    if (useSsl) {
-      // Supabase/PG em cloud normalmente exige SSL; rejectUnauthorized false para evitar erro com certs auto-assinados
-      clientConfig.ssl = { rejectUnauthorized: false };
+    const url = new URL(connStr);
+    const host = url.hostname; // ex: ep-shy-bush-ah3ds9ze-pooler.c-3.us-east-1.aws.neon.tech
+    const firstPart = host.split(".")[0]; // **use exatamente este valor**
+    if (host.includes("neon.tech")) {
+      const params = url.searchParams;
+      // se já existe options e bate com firstPart, retorna original
+      if (params.has("options")) {
+        const val = params.get("options") || "";
+        // se já contém endpoint=firstPart, ok
+        if (val.includes(`endpoint=${firstPart}`)) return connStr;
+        // caso exista options diferente — substitui pela correta
+        params.set("options", `endpoint=${firstPart}`);
+        url.search = params.toString();
+        return url.toString();
+      } else {
+        params.append("options", `endpoint=${firstPart}`);
+        url.search = params.toString();
+        return url.toString();
+      }
     }
-
-    return new Client(clientConfig);
+    return connStr;
   } catch (err) {
-    console.warn(
-      "⚠️  Não foi possível resolver IPv4 automaticamente (ou outro erro ao tentar usar IPv4):",
-      err && err.message ? err.message : err
-    );
-    throw err;
+    return connStr;
   }
 }
 
-async function createClientFallbackToConnectionString() {
-  console.log("🔁 Usando fallback: conexão pela connectionString direta");
-  const clientConfig = {
-    connectionString
-  };
-  if (useSsl) {
-    clientConfig.ssl = { rejectUnauthorized: false };
-  }
-  return new Client(clientConfig);
-}
+const adjustedConnectionString = addNeonEndpointOption(connectionString);
+console.log("Using connection string host:", (() => { try { return new URL(adjustedConnectionString).hostname } catch { return adjustedConnectionString } })());
 
-let client;
+const client = new Client({
+  connectionString: adjustedConnectionString,
+  ssl: { rejectUnauthorized: false }, // ok para dev
+});
+
+await client.connect();
+
 try {
-  // Tenta primeiro resolver IPv4 para evitar problemas de DNS/IPv6 em algumas infra
-  try {
-    client = await createClientUsingIPv4();
-  } catch (err) {
-    // Se falhar a resolução/uso de IPv4, faz fallback para usar diretamente a connection string
-    client = await createClientFallbackToConnectionString();
-  }
-
-  // Conecta
-  await client.connect();
-
-  // Testa uma query simples para confirmar conexão
-  try {
-    const res = await client.query("SELECT now() as now");
-    console.log("✅ Conectado ao banco. Hora do DB:", res.rows && res.rows[0] ? res.rows[0].now : res);
-  } catch (err) {
-    console.error("❌ Erro ao testar query no DB:", err && err.message ? err.message : err);
-  }
+  const res = await client.query("SELECT now() as now");
+  console.log("Conectado ao banco. Hora DB:", res.rows[0].now);
 } catch (err) {
-  console.error("❌ Falha ao conectar ao banco de dados:", err && err.message ? err.message : err);
-  // Lança o erro pra subir a falha durante o start (útil para a infra detectar e reiniciar/erro no deploy)
+  console.error("Erro ao conectar ao banco:", err);
   throw err;
 }
 
-// Exports
 export const rawClient = client;
 export const db = drizzle(client);
