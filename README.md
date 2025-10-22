@@ -2,7 +2,7 @@
 
 ## Demo ao vivo
 - Backend API: Nã foi possivel deixa-lo online por causa do drizze que não é compativel com o render 
-- Aplicação Frontend: [https://frontend-encurtador-git-main-dudxxxs-projects.vercel.app/](https://frontend-encurtador-git-main-dudxxxs-projects.vercel.app/)
+- Aplicação Frontend: [https://frontend-encurtador.vercel.app/](https://frontend-encurtador-git-main-dudxxxs-projects.vercel.app/)
 
 ## Sobre
 Este é um serviço de API para encurtamento de URLs construído com Node.js e PostgreSQL usando Drizzle ORM. Permite que usuários criem versões encurtadas de URLs longas e redireciona os usuários para as URLs originais ao acessar os links encurtados.
