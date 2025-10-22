@@ -1,3 +1,4 @@
+// src/server.js
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import dotenv from "dotenv";
@@ -8,16 +9,38 @@ import { redirectRoutes } from "./routes/redirect.js";
 import { rawClient } from "./db/index.js";
 
 const PORT = Number(process.env.PORT || 4000);
-const ORIGIN = process.env.CORS_ORIGIN || "*"; // agora usamos a env aqui
+
+const ORIGIN_RAW = process.env.CORS_ORIGIN ?? "";
+const ORIGIN_TRIM = ORIGIN_RAW.trim();
 
 const server = Fastify({ logger: true });
 
-await server.register(cors, {
-  origin: ORIGIN,         // <-- use a variável ORIGIN
-  methods: ["GET","POST","PUT","DELETE","OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "Origin", "Accept"],
-  credentials: true
-});
+if (ORIGIN_TRIM === "*" || ORIGIN_TRIM === "") {
+
+  server.log.warn("CORS: modo permissivo ativo (ORIGIN='*' ou vazio). Não recomendado em produção.");
+  await server.register(cors, {
+    origin: true,
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Origin", "Accept"],
+    credentials: false, 
+  });
+} else {
+
+  const allowed = ORIGIN_TRIM.split(",").map((s) => s.trim()).filter(Boolean);
+  server.log.info("CORS: origens permitidas:", allowed);
+
+  await server.register(cors, {
+    origin: (origin, cb) => {
+
+      if (!origin) return cb(null, true);
+      if (allowed.includes(origin)) return cb(null, true);
+      cb(new Error("Not allowed by CORS"), false);
+    },
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Origin", "Accept"],
+    credentials: true,
+  });
+}
 
 server.addHook("onRequest", async (request, reply) => {
   server.log.info(`[REQ] ${request.method} ${request.url}  Origin=${request.headers.origin ?? "-"}`);
@@ -35,6 +58,5 @@ server.get("/health", async () => {
   }
 });
 
-// usar await aqui fica coerente já que o arquivo é módulo (top-level await)
 await server.listen({ port: PORT, host: "0.0.0.0" });
 server.log.info(`Server listening on http://0.0.0.0:${PORT}`);
