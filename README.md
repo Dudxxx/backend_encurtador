@@ -1,7 +1,7 @@
 # API de Encurtador de URLs
 
 ## Demo ao vivo
-- Backend API: Nã foi possivel deixa-lo online por causa do drizze que não é compativel com o render 
+- Backend API: https://backend-encurtador.onrender.com
 - Aplicação Frontend: [https://frontend-encurtador.vercel.app/](https://frontend-encurtador-git-main-dudxxxs-projects.vercel.app/)
 
 ## Sobre
