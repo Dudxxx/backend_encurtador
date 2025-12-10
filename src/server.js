@@ -12,10 +12,12 @@ const PORT = Number(process.env.PORT || 4000);
 
 const ORIGIN_RAW = process.env.CORS_ORIGIN ?? "";
 const ORIGIN_TRIM = ORIGIN_RAW.trim();
-server.log.info("CORS_ORIGIN env:", ORIGIN_TRIM);
 
+// Crie o server antes de usar server.log
 const server = Fastify({ logger: true });
 
+// Agora sim podemos usar server.log
+server.log.info("CORS_ORIGIN env:", ORIGIN_TRIM);
 if (ORIGIN_TRIM === "*" || ORIGIN_TRIM === "") {
 
   server.log.warn("CORS: modo permissivo ativo (ORIGIN='*' ou vazio). Não recomendado em produção.");
