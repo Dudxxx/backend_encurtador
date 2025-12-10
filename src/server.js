@@ -12,6 +12,7 @@ const PORT = Number(process.env.PORT || 4000);
 
 const ORIGIN_RAW = process.env.CORS_ORIGIN ?? "";
 const ORIGIN_TRIM = ORIGIN_RAW.trim();
+server.log.info("CORS_ORIGIN env:", ORIGIN_TRIM);
 
 const server = Fastify({ logger: true });
 
