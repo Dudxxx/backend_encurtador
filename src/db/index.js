@@ -37,18 +37,16 @@ function addNeonEndpointOption(connStr) {
 
 const adjustedConnectionString = addNeonEndpointOption(connectionString);
 
-// Usar Pool em vez de Client para gerenciar conexões
 const pool = new Pool({
   connectionString: adjustedConnectionString,
   ssl: {
     rejectUnauthorized: false
   },
-  max: 5, // número máximo de clientes no pool
-  idleTimeoutMillis: 30000, // tempo máximo que um cliente pode ficar idle
-  connectionTimeoutMillis: 5000, // tempo máximo para tentar conectar
+  max: 5,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
 });
 
-// Event listeners para debug
 pool.on('connect', () => {
   console.log('✅ Nova conexão estabelecida com o banco');
 });
@@ -57,8 +55,8 @@ pool.on('error', (err) => {
   console.error('❌ Erro no pool do PostgreSQL:', err);
 });
 
-// Testar conexão apenas quando necessário
-async function testConnection() {
+// Função para testar a conexão (EXPORTADA)
+export async function testConnection() {
   try {
     const client = await pool.connect();
     console.log('🔄 Testando conexão com o banco...');
@@ -71,9 +69,6 @@ async function testConnection() {
     return false;
   }
 }
-
-// Não testamos a conexão imediatamente - deixamos para quando necessário
-// testConnection().catch(console.error);
 
 export const db = drizzle(pool);
 export const rawPool = pool;

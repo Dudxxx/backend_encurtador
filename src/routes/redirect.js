@@ -2,41 +2,29 @@
 import { LinkRepository } from "../repositories/linkRepository.js";
 
 export async function redirectRoutes(fastify) {
-
   fastify.get("/:code", async (request, reply) => {
-    const { code } = request.params ?? {};
-    fastify.log.info("GET /:code recebido:", code);
-
+    const { code } = request.params;
+    
     if (!code) {
-      return reply.code(400).send({ message: "Código é obrigatório" });
+      return reply.status(400).send({ error: "Código é obrigatório" });
     }
-
+    
     try {
       const link = await LinkRepository.findByCode(code);
+      
       if (!link) {
-        return reply.code(404).send({ message: "Código não encontrado" });
+        return reply.status(404).send({ error: "Link não encontrado" });
       }
-
-      // Log da URL que será redirecionada
-      fastify.log.info(`Redirecionando código ${code} para: ${link.url}`);
-
-      try {
-        await LinkRepository.incrementClicks(link.id);
-      } catch (e) {
-        fastify.log.warn("Falha ao incrementar clique:", e);
-      }
-
-      reply.status(302);
-      reply.header("Location", link.url);
-      return reply.send();
-    } catch (err) {
-      fastify.log.error("Erro no redirect:", err);
-      return reply
-        .code(500)
-        .send({
-          message: "Erro no redirecionamento",
-          error: err.message ?? String(err),
-        });
+      
+      // Incrementar cliques
+      await LinkRepository.incrementClicks(link.id);
+      
+      // Redirecionar
+      return reply.redirect(302, link.url);
+      
+    } catch (error) {
+      console.error("Erro no redirecionamento:", error);
+      return reply.status(500).send({ error: "Erro interno" });
     }
   });
 }
