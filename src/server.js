@@ -10,20 +10,24 @@ import { rawClient } from "./db/index.js";
 
 const PORT = Number(process.env.PORT || 4000);
 
-// Configuração SIMPLIFICADA do logger que funciona em produção
+// Configuração simplificada do Fastify
 const server = Fastify({ 
-  logger: {
-    level: process.env.NODE_ENV === 'production' ? 'info' : 'debug'
-  }
+  logger: process.env.NODE_ENV !== 'production'
 });
 
-// Configuração do CORS simplificada
+// Configuração do CORS
 await server.register(cors, {
-  origin: true, // Permite todas as origens (ajuste para produção se necessário)
+  origin: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 });
 
-// Rotas
+// Log de todas as requisições
+server.addHook('onRequest', (request, reply, done) => {
+  console.log(`${request.method} ${request.url}`);
+  done();
+});
+
+// Registrar rotas
 await server.register(linksRoutes, { prefix: "/api" });
 await server.register(redirectRoutes);
 
@@ -31,34 +35,49 @@ await server.register(redirectRoutes);
 server.get("/health", async () => {
   try {
     await rawClient.query("SELECT 1");
-    return { status: "OK", database: "connected" };
+    return { 
+      status: "OK", 
+      database: "connected",
+      timestamp: new Date().toISOString() 
+    };
   } catch (error) {
-    return { status: "ERROR", database: "disconnected", error: error.message };
+    console.error("Database connection error:", error);
+    return { 
+      status: "ERROR", 
+      database: "disconnected",
+      error: error.message 
+    };
   }
 });
 
-// Rota principal
-server.get("/", async () => {
-  return { 
-    message: "API Encurtador de Links",
-    version: "1.0.0",
-    endpoints: {
-      create: "POST /api/links",
-      list: "GET /api/links",
-      redirect: "GET /:code",
-      health: "GET /health"
-    }
-  };
+// Rota para listar todas as URLs (debug)
+server.get("/api/debug/urls", async () => {
+  try {
+    const result = await rawClient.query(`
+      SELECT id, code, url, clicks, created_at 
+      FROM links 
+      ORDER BY created_at DESC
+    `);
+    return result.rows;
+  } catch (error) {
+    return { error: error.message };
+  }
 });
 
 // Iniciar servidor
-try {
-  await server.listen({ 
-    port: PORT, 
-    host: "0.0.0.0" 
-  });
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
-} catch (error) {
-  console.error("❌ Erro ao iniciar servidor:", error);
-  process.exit(1);
-}
+const start = async () => {
+  try {
+    await server.listen({ 
+      port: PORT, 
+      host: "0.0.0.0" 
+    });
+    console.log(`✅ Servidor rodando na porta ${PORT}`);
+    console.log(`🌍 Health check: http://localhost:${PORT}/health`);
+    console.log(`🔗 Debug URLs: http://localhost:${PORT}/api/debug/urls`);
+  } catch (error) {
+    console.error("❌ Erro ao iniciar servidor:", error);
+    process.exit(1);
+  }
+};
+
+start();

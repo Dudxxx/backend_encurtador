@@ -8,96 +8,104 @@ const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 6);
 export async function linksRoutes(fastify) {
 
   fastify.post("/links", async (request, reply) => {
-    fastify.log.info("POST /api/links recebido, origin:", request.headers.origin);
-
-    // VALIDAÇÃO E CORREÇÃO DA URL (CORREÇÃO PRINCIPAL)
-    if (request.body && typeof request.body.url === "string") {
-      let url = request.body.url.trim();
-      
-      // Remove espaços em branco
-      url = url.trim();
-      
-      // Verifica se já tem protocolo
-      if (!/^\s*https?:\/\//i.test(url)) {
-        // Para URLs locais em desenvolvimento, use http
-        if (url.includes('localhost') || 
-            url.includes('127.0.0.1') || 
-            url.startsWith('0.0.0.0') ||
-            url.startsWith('0.0.0.1') ||
-            /^\d+\.\d+\.\d+\.\d+/.test(url)) {
-          url = "http://" + url;
-        } else {
-          // Para URLs públicas, use https
-          url = "https://" + url;
-        }
-      }
-      
-      // Valida se é uma URL válida
-      try {
-        new URL(url);
-        request.body.url = url;
-      } catch (err) {
-        fastify.log.warn("URL inválida após correção:", url);
-        return reply.code(400).send({ 
-          message: "URL inválida. Use um formato correto como: https://exemplo.com ou http://localhost:3000",
-          url_recebida: request.body.url,
-          url_corrigida: url
+  try {
+    // Log do que foi recebido
+    console.log("Body recebido:", request.body);
+    
+    // VALIDAÇÃO FORTE DA URL
+    if (!request.body || typeof request.body.url !== 'string') {
+      return reply.code(400).send({ 
+        error: "URL é obrigatória e deve ser uma string" 
+      });
+    }
+    
+    let url = request.body.url.trim();
+    
+    // Verificar se é uma URL inválida conhecida
+    const invalidPatterns = [
+      /^0\.0\.0\.\d+/,        // 0.0.0.1, 0.0.0.2, etc
+      /^localhost(\:\d+)?$/,   // localhost:3000
+      /^127\.0\.0\.1(\:\d+)?$/, // 127.0.0.1:3000
+      /^\d+\.\d+\.\d+\.\d+$/,  // Qualquer IP sem protocolo
+    ];
+    
+    for (const pattern of invalidPatterns) {
+      if (pattern.test(url)) {
+        return reply.code(400).send({
+          error: `URL inválida: "${url}". Use uma URL pública válida como "https://exemplo.com"`,
+          suggestion: "Se estiver testando localmente, use http://localhost:3000 (com http://)"
         });
       }
     }
-
-    const bodySchema = z.object({
-      legenda: z.string().optional(),
-      title: z.string().optional(),
-      url: z.string().url()
-    });
-
-    let parsed;
+    
+    // Adicionar protocolo se não tiver
+    if (!/^https?:\/\//i.test(url)) {
+      url = "https://" + url;
+    }
+    
+    // Validar formato da URL
     try {
-      parsed = bodySchema.parse(request.body || {});
+      new URL(url);
     } catch (err) {
-      fastify.log.warn("Payload inválido:", err.errors ?? err.message ?? err);
-      return reply.code(400).send({ 
-        message: "Payload inválido", 
-        details: err.errors ?? err.message,
-        body_recebido: request.body
+      return reply.code(400).send({
+        error: "URL inválida",
+        details: "Formato incorreto. Exemplos válidos:",
+        examples: [
+          "https://google.com",
+          "http://localhost:3000",
+          "https://meusite.vercel.app"
+        ]
       });
     }
-
-    const legenda = parsed.legenda ?? parsed.title ?? "Sem legenda";
-    const url = parsed.url;
-
-    try {
-      // Log da URL que será salva
-      fastify.log.info("URL que será salva no banco:", url);
-
-      let code = nanoid();
-      let tries = 0;
-      while (await LinkRepository.findByCode(code)) {
-        code = nanoid();
-        tries++;
-        if (tries > 50) {
-          fastify.log.error("Não foi possível gerar código único após 50 tentativas");
-          return reply.code(500).send({ message: "Erro interno ao gerar código" });
-        }
+    
+    // Verificar se é um domínio real (não localhost em produção)
+    const urlObj = new URL(url);
+    if (process.env.NODE_ENV === 'production') {
+      const localDomains = ['localhost', '127.0.0.1', '0.0.0.0', '0.0.0.1', '0.0.0.2'];
+      if (localDomains.includes(urlObj.hostname)) {
+        return reply.code(400).send({
+          error: "URL local não permitida em produção",
+          suggestion: "Use um domínio público"
+        });
       }
-
-      const created = await LinkRepository.create({
-        legenda,
-        url,
-        code,
-        clicks: 0
-      });
-
-      return reply.code(201).send(created);
-    } catch (err) {
-      fastify.log.error("Erro ao criar link:", err);
-      return reply.code(500).send({ 
-        message: "Erro ao salvar link", 
-        error: err.message ?? String(err) 
-      });
     }
-  });
+    
+    // Resto do código para criar o link...
+    let code = nanoid();
+    let tries = 0;
+    
+    while (await LinkRepository.findByCode(code)) {
+      code = nanoid();
+      tries++;
+      if (tries > 50) {
+        return reply.code(500).send({ error: "Erro ao gerar código único" });
+      }
+    }
+    
+    const legenda = request.body.legenda || request.body.title || "Sem legenda";
+    
+    const created = await LinkRepository.create({
+      legenda,
+      url,
+      code,
+      clicks: 0
+    });
+    
+    // Retornar URL completa do link encurtado
+    const baseUrl = process.env.BASE_URL || `http://${request.headers.host}`;
+    
+    return reply.code(201).send({
+      ...created,
+      shortUrl: `${baseUrl}/${code}`
+    });
+    
+  } catch (error) {
+    console.error("Erro ao criar link:", error);
+    return reply.code(500).send({ 
+      error: "Erro interno do servidor" 
+    });
+  }
+});
 
   fastify.get("/links", async (request, reply) => {
     try {
