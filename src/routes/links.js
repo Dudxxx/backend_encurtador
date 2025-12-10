@@ -11,16 +11,18 @@ export async function linksRoutes(fastify) {
     fastify.log.info("POST /api/links recebido, origin:", request.headers.origin);
 
     if (request.body && typeof request.body.url === "string") {
-      if (!/^\s*https?:\/\//i.test(request.body.url)) {
-        request.body.url = "https://" + request.body.url.trim();
-      }
-    }
+  let u = String(request.body.url || "").trim();
 
-    const bodySchema = z.object({
-      legenda: z.string().optional(),
-      title: z.string().optional(),
-      url: z.string().url()
-    });
+  if (/^https?:\/\//i.test(u)) {
+    // ok
+  } else if (u.startsWith("//")) {
+    u = "https:" + u;
+  } else if (u) {
+    u = "https://" + u;
+  }
+
+  request.body.url = u;
+};
 
     let parsed;
     try {
