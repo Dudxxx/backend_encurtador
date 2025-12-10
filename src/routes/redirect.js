@@ -1,4 +1,4 @@
-
+// src/routes/redirect.js
 import { LinkRepository } from "../repositories/linkRepository.js";
 
 export async function redirectRoutes(fastify) {
@@ -16,6 +16,9 @@ export async function redirectRoutes(fastify) {
       if (!link) {
         return reply.code(404).send({ message: "Código não encontrado" });
       }
+
+      // Log da URL que será redirecionada
+      fastify.log.info(`Redirecionando código ${code} para: ${link.url}`);
 
       try {
         await LinkRepository.incrementClicks(link.id);

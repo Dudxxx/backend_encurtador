@@ -1,4 +1,4 @@
-
+// src/repositories/linkRepository.js
 import { db, rawClient } from "../db/index.js";
 import { links } from "../db/schema.js";
 import { eq, desc } from "drizzle-orm";
@@ -33,21 +33,8 @@ export const LinkRepository = {
   },
 
   async deleteByCode(code) {
-
- try {
- await rawClient.query("DELETE FROM public.links WHERE code = $1", [code]);
- } catch (err) {
- console.error("Erro em deleteByCode:", err);
- throw err;
- }
-
- try {
- await db.delete(links).where(eq(links.code, code));
- } catch (err) {
- console.error("Erro em deleteByCode:", err);
- throw err;
- }
-},
+    await db.delete(links).where(eq(links.code, code));
+  },
 
   async incrementClicks(id) {
     try {

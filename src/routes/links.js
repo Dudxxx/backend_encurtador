@@ -1,4 +1,4 @@
-
+// src/routes/links.js
 import { z } from "zod";
 import { customAlphabet } from "nanoid";
 import { LinkRepository } from "../repositories/linkRepository.js";
@@ -10,9 +10,39 @@ export async function linksRoutes(fastify) {
   fastify.post("/links", async (request, reply) => {
     fastify.log.info("POST /api/links recebido, origin:", request.headers.origin);
 
+    // VALIDAÇÃO E CORREÇÃO DA URL (CORREÇÃO PRINCIPAL)
     if (request.body && typeof request.body.url === "string") {
-      if (!/^\s*https?:\/\//i.test(request.body.url)) {
-        request.body.url = "https://" + request.body.url.trim();
+      let url = request.body.url.trim();
+      
+      // Remove espaços em branco
+      url = url.trim();
+      
+      // Verifica se já tem protocolo
+      if (!/^\s*https?:\/\//i.test(url)) {
+        // Para URLs locais em desenvolvimento, use http
+        if (url.includes('localhost') || 
+            url.includes('127.0.0.1') || 
+            url.startsWith('0.0.0.0') ||
+            url.startsWith('0.0.0.1') ||
+            /^\d+\.\d+\.\d+\.\d+/.test(url)) {
+          url = "http://" + url;
+        } else {
+          // Para URLs públicas, use https
+          url = "https://" + url;
+        }
+      }
+      
+      // Valida se é uma URL válida
+      try {
+        new URL(url);
+        request.body.url = url;
+      } catch (err) {
+        fastify.log.warn("URL inválida após correção:", url);
+        return reply.code(400).send({ 
+          message: "URL inválida. Use um formato correto como: https://exemplo.com ou http://localhost:3000",
+          url_recebida: request.body.url,
+          url_corrigida: url
+        });
       }
     }
 
@@ -27,13 +57,19 @@ export async function linksRoutes(fastify) {
       parsed = bodySchema.parse(request.body || {});
     } catch (err) {
       fastify.log.warn("Payload inválido:", err.errors ?? err.message ?? err);
-      return reply.code(400).send({ message: "Payload inválido", details: err.errors ?? err.message });
+      return reply.code(400).send({ 
+        message: "Payload inválido", 
+        details: err.errors ?? err.message,
+        body_recebido: request.body
+      });
     }
 
     const legenda = parsed.legenda ?? parsed.title ?? "Sem legenda";
     const url = parsed.url;
 
     try {
+      // Log da URL que será salva
+      fastify.log.info("URL que será salva no banco:", url);
 
       let code = nanoid();
       let tries = 0;
@@ -53,11 +89,13 @@ export async function linksRoutes(fastify) {
         clicks: 0
       });
 
-
       return reply.code(201).send(created);
     } catch (err) {
       fastify.log.error("Erro ao criar link:", err);
-      return reply.code(500).send({ message: "Erro ao salvar link", error: err.message ?? String(err) });
+      return reply.code(500).send({ 
+        message: "Erro ao salvar link", 
+        error: err.message ?? String(err) 
+      });
     }
   });
 
@@ -67,7 +105,10 @@ export async function linksRoutes(fastify) {
       return reply.code(200).send(all);
     } catch (err) {
       fastify.log.error("Erro ao listar links:", err);
-      return reply.code(500).send({ message: "Erro ao listar links", error: err.message ?? String(err) });
+      return reply.code(500).send({ 
+        message: "Erro ao listar links", 
+        error: err.message ?? String(err) 
+      });
     }
   });
 
@@ -89,7 +130,10 @@ export async function linksRoutes(fastify) {
     try {
       body = bodySchema.parse(request.body);
     } catch (err) {
-      return reply.code(400).send({ message: "Payload inválido", details: err.errors ?? err.message });
+      return reply.code(400).send({ 
+        message: "Payload inválido", 
+        details: err.errors ?? err.message 
+      });
     }
 
     try {
@@ -98,48 +142,53 @@ export async function linksRoutes(fastify) {
       return reply.code(200).send(updated);
     } catch (err) {
       fastify.log.error("Erro ao atualizar link:", err);
-      return reply.code(500).send({ message: "Erro ao atualizar", error: err.message ?? String(err) });
+      return reply.code(500).send({ 
+        message: "Erro ao atualizar", 
+        error: err.message ?? String(err) 
+      });
     }
   });
 
   fastify.delete("/links/:id", async (request, reply) => {
-  try {
-    fastify.log.info("DEBUG DELETE request received");
-    fastify.log.info("  params:", request.params);
-    fastify.log.info("  headers.origin:", request.headers.origin);
-    fastify.log.info("  raw body:", request.body);
+    try {
+      fastify.log.info("DEBUG DELETE request received");
+      fastify.log.info("  params:", request.params);
+      fastify.log.info("  headers.origin:", request.headers.origin);
+      fastify.log.info("  raw body:", request.body);
 
-    const rawId = String(request.params?.id ?? "");
-    fastify.log.info("  rawId:", rawId);
+      const rawId = String(request.params?.id ?? "");
+      fastify.log.info("  rawId:", rawId);
 
+      const asNumber = Number(rawId);
+      const isNumberId = Number.isInteger(asNumber) && String(asNumber) === rawId;
 
-    const asNumber = Number(rawId);
-    const isNumberId = Number.isInteger(asNumber) && String(asNumber) === rawId;
-
-    if (isNumberId) {
-      fastify.log.info("  Deleting by numeric id:", asNumber);
-      const exists = await LinkRepository.findById(asNumber);
-      if (!exists) {
-        fastify.log.warn("  Not found by id:", asNumber);
-        return reply.code(404).send({ message: "Link não encontrado (id)" });
+      if (isNumberId) {
+        fastify.log.info("  Deleting by numeric id:", asNumber);
+        const exists = await LinkRepository.findById(asNumber);
+        if (!exists) {
+          fastify.log.warn("  Not found by id:", asNumber);
+          return reply.code(404).send({ message: "Link não encontrado (id)" });
+        }
+        await LinkRepository.deleteById(asNumber);
+        fastify.log.info("  Deleted by id:", asNumber);
+        return reply.code(204).send();
+      } else {
+        fastify.log.info("  Deleting by code:", rawId);
+        const exists = await LinkRepository.findByCode(rawId);
+        if (!exists) {
+          fastify.log.warn("  Not found by code:", rawId);
+          return reply.code(404).send({ message: "Link não encontrado (code)" });
+        }
+        await LinkRepository.deleteByCode(rawId);
+        fastify.log.info("  Deleted by code:", rawId);
+        return reply.code(204).send();
       }
-      await LinkRepository.deleteById(asNumber);
-      fastify.log.info("  Deleted by id:", asNumber);
-      return reply.code(204).send();
-    } else {
-      fastify.log.info("  Deleting by code:", rawId);
-      const exists = await LinkRepository.findByCode(rawId);
-      if (!exists) {
-        fastify.log.warn("  Not found by code:", rawId);
-        return reply.code(404).send({ message: "Link não encontrado (code)" });
-      }
-      await LinkRepository.deleteByCode(rawId);
-      fastify.log.info("  Deleted by code:", rawId);
-      return reply.code(204).send();
+    } catch (err) {
+      fastify.log.error("DEBUG delete error:", err);
+      return reply.code(500).send({ 
+        message: "Erro ao deletar (debug)", 
+        error: err.message ?? String(err) 
+      });
     }
-  } catch (err) {
-    fastify.log.error("DEBUG delete error:", err);
-    return reply.code(500).send({ message: "Erro ao deletar (debug)", error: err.message ?? String(err) });
-  }
-});
+  });
 }

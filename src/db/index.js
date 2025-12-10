@@ -13,16 +13,13 @@ if (!connectionString) {
 function addNeonEndpointOption(connStr) {
   try {
     const url = new URL(connStr);
-    const host = url.hostname; // ex: ep-shy-bush-ah3ds9ze-pooler.c-3.us-east-1.aws.neon.tech
-    const firstPart = host.split(".")[0]; // **use exatamente este valor**
+    const host = url.hostname;
+    const firstPart = host.split(".")[0];
     if (host.includes("neon.tech")) {
       const params = url.searchParams;
-      // se já existe options e bate com firstPart, retorna original
       if (params.has("options")) {
         const val = params.get("options") || "";
-        // se já contém endpoint=firstPart, ok
         if (val.includes(`endpoint=${firstPart}`)) return connStr;
-        // caso exista options diferente — substitui pela correta
         params.set("options", `endpoint=${firstPart}`);
         url.search = params.toString();
         return url.toString();
@@ -43,7 +40,7 @@ console.log("Using connection string host:", (() => { try { return new URL(adjus
 
 const client = new Client({
   connectionString: adjustedConnectionString,
-  ssl: { rejectUnauthorized: false }, // ok para dev
+  ssl: { rejectUnauthorized: false },
 });
 
 await client.connect();

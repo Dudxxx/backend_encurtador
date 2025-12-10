@@ -1,4 +1,4 @@
-
+// src/db/schema.js
 import { pgTable, serial, text, varchar, integer, timestamp } from "drizzle-orm/pg-core";
 
 export const links = pgTable("links", {
