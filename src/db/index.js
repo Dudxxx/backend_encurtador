@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import { Pool } from "pg";
-import { drizzle } from "drizzle-orm/node-postgres";
+import { drizzle } from "drizzle-orm/postgres-js";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
