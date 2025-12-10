@@ -10,98 +10,55 @@ import { rawClient } from "./db/index.js";
 
 const PORT = Number(process.env.PORT || 4000);
 
-const ORIGIN_RAW = process.env.CORS_ORIGIN ?? "";
-const ORIGIN_TRIM = ORIGIN_RAW.trim();
-
-// Crie o server antes de usar server.log
+// Configuração SIMPLIFICADA do logger que funciona em produção
 const server = Fastify({ 
   logger: {
-    level: 'info',
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        translateTime: 'HH:MM:ss Z',
-        ignore: 'pid,hostname',
-      }
-    }
+    level: process.env.NODE_ENV === 'production' ? 'info' : 'debug'
   }
 });
 
-// Configuração do CORS
-server.log.info("CORS_ORIGIN env:", ORIGIN_TRIM);
-if (ORIGIN_TRIM === "*" || ORIGIN_TRIM === "") {
-  server.log.warn("CORS: modo permissivo ativo (ORIGIN='*' ou vazio).");
-  await server.register(cors, {
-    origin: true,
-    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Origin", "Accept"],
-    credentials: false,
-  });
-} else {
-  const allowed = ORIGIN_TRIM.split(",").map((s) => s.trim()).filter(Boolean);
-  server.log.info("CORS: origens permitidas:", allowed);
-
-  await server.register(cors, {
-    origin: (origin, cb) => {
-      if (!origin) return cb(null, true);
-      if (allowed.includes(origin)) return cb(null, true);
-      cb(new Error("Not allowed by CORS"), false);
-    },
-    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Origin", "Accept"],
-    credentials: true,
-  });
-}
-
-// Hook para log de todas as requisições
-server.addHook("onRequest", async (request, reply) => {
-  server.log.info(`[REQ] ${request.method} ${request.url} Origin=${request.headers.origin ?? "-"}`);
+// Configuração do CORS simplificada
+await server.register(cors, {
+  origin: true, // Permite todas as origens (ajuste para produção se necessário)
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 });
 
-// Registrar rotas
+// Rotas
 await server.register(linksRoutes, { prefix: "/api" });
 await server.register(redirectRoutes);
 
-// Health check endpoint
+// Health check
 server.get("/health", async () => {
   try {
-    const res = await rawClient.query("SELECT 1 as ok");
-    return { 
-      ok: true, 
-      message: "API está funcionando",
-      database: "conectado"
-    };
-  } catch (err) {
-    return { 
-      ok: false, 
-      error: err.message,
-      database: "desconectado"
-    };
+    await rawClient.query("SELECT 1");
+    return { status: "OK", database: "connected" };
+  } catch (error) {
+    return { status: "ERROR", database: "disconnected", error: error.message };
   }
 });
 
-// Endpoint de debug para verificar URLs no banco
-server.get("/api/debug/urls", async (request, reply) => {
-  try {
-    const result = await rawClient.query(`
-      SELECT id, code, url, clicks, created_at 
-      FROM links 
-      ORDER BY created_at DESC 
-      LIMIT 10
-    `);
-    return reply.code(200).send(result.rows);
-  } catch (err) {
-    return reply.code(500).send({ error: err.message });
-  }
+// Rota principal
+server.get("/", async () => {
+  return { 
+    message: "API Encurtador de Links",
+    version: "1.0.0",
+    endpoints: {
+      create: "POST /api/links",
+      list: "GET /api/links",
+      redirect: "GET /:code",
+      health: "GET /health"
+    }
+  };
 });
 
 // Iniciar servidor
 try {
-  await server.listen({ port: PORT, host: "0.0.0.0" });
-  server.log.info(`✅ Servidor rodando em http://0.0.0.0:${PORT}`);
-  server.log.info(`✅ Health check disponível em http://0.0.0.0:${PORT}/health`);
-  server.log.info(`✅ API disponível em http://0.0.0.0:${PORT}/api/links`);
-} catch (err) {
-  server.log.error(err);
+  await server.listen({ 
+    port: PORT, 
+    host: "0.0.0.0" 
+  });
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+} catch (error) {
+  console.error("❌ Erro ao iniciar servidor:", error);
   process.exit(1);
 }
