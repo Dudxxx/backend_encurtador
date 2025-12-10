@@ -2,7 +2,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import { Client } from "pg";
+import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 
 const connectionString = process.env.DATABASE_URL;
@@ -36,22 +36,54 @@ function addNeonEndpointOption(connStr) {
 }
 
 const adjustedConnectionString = addNeonEndpointOption(connectionString);
-console.log("Using connection string host:", (() => { try { return new URL(adjustedConnectionString).hostname } catch { return adjustedConnectionString } })());
 
-const client = new Client({
+// Usar Pool em vez de Client para gerenciar conexões
+const pool = new Pool({
   connectionString: adjustedConnectionString,
-  ssl: { rejectUnauthorized: false },
+  ssl: {
+    rejectUnauthorized: false
+  },
+  max: 5, // número máximo de clientes no pool
+  idleTimeoutMillis: 30000, // tempo máximo que um cliente pode ficar idle
+  connectionTimeoutMillis: 5000, // tempo máximo para tentar conectar
 });
 
-await client.connect();
+// Event listeners para debug
+pool.on('connect', () => {
+  console.log('✅ Nova conexão estabelecida com o banco');
+});
 
-try {
-  const res = await client.query("SELECT now() as now");
-  console.log("Conectado ao banco. Hora DB:", res.rows[0].now);
-} catch (err) {
-  console.error("Erro ao conectar ao banco:", err);
-  throw err;
+pool.on('error', (err) => {
+  console.error('❌ Erro no pool do PostgreSQL:', err);
+});
+
+// Testar conexão apenas quando necessário
+async function testConnection() {
+  try {
+    const client = await pool.connect();
+    console.log('🔄 Testando conexão com o banco...');
+    const res = await client.query('SELECT NOW() as now');
+    client.release();
+    console.log('✅ Conexão com banco OK. Hora do DB:', res.rows[0].now);
+    return true;
+  } catch (err) {
+    console.error('❌ Erro ao conectar ao banco:', err.message);
+    return false;
+  }
 }
 
-export const rawClient = client;
-export const db = drizzle(client);
+// Não testamos a conexão imediatamente - deixamos para quando necessário
+// testConnection().catch(console.error);
+
+export const db = drizzle(pool);
+export const rawPool = pool;
+
+// Função para obter uma conexão quando necessário
+export async function getConnection() {
+  const client = await pool.connect();
+  return {
+    client,
+    release: () => client.release(),
+    query: (text, params) => client.query(text, params)
+  };
+}
